@@ -1,0 +1,16 @@
+{
+  "name": "rag-doctor",
+  "version": "1.0.0",
+  "description": "RAG Doctor 🩺 - Diagnostic & Debugging Tool for Retrieval-Augmented Generation (RAG) Systems",
+  "main": "server/server.js",
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "seed": "cd server && npm run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

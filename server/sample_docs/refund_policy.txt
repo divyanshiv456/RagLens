@@ -1,0 +1,22 @@
+RAGDoctor Technologies - Customer Refund & Return Policy
+
+1. Overview
+At RAGDoctor Technologies, customer satisfaction is our top priority. If you are not completely satisfied with your subscription or software license purchase, we are here to help.
+
+2. Refund Period
+Customers can request a full refund within 30 days of purchase for any monthly or annual plan. Refund requests submitted after 30 days of purchase will not be eligible for a refund, but users can cancel their subscription at any time to prevent future charges.
+
+3. Refund Eligibility Criteria
+To be eligible for a refund:
+- The purchase must have been made directly through the official RAGDoctor website or authorized billing portal.
+- The request must be submitted within the 30-day window from the original transaction date.
+- The account must not have violated our Terms of Service (e.g., API abuse or unauthorized resale).
+
+4. Processing Time
+Once a refund request is approved by our billing team, refunds are processed within 5 to 7 business days. The funds will be returned to the original payment method used during checkout.
+
+5. Exceptions
+Special promotional licenses, enterprise custom contracts, and add-on API credits purchased separately are non-refundable unless specified otherwise in writing.
+
+6. How to Request a Refund
+To request a refund, please send an email to support@ragdoctor.io with your Order ID, account email address, and reason for refund.
