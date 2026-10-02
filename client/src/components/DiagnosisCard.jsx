@@ -2,7 +2,6 @@ import React from 'react';
 import HealthScoreBadge from './HealthScoreBadge';
 import CheckResultCard from './CheckResultCard';
 import { Lightbulb, FileText, AlertOctagon, CheckCircle2, Bookmark, ExternalLink } from 'lucide-react';
-
 export default function DiagnosisCard({ diagnosis = {} }) {
   const {
     question,

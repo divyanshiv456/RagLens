@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
+const { STOP_WORDS, stemWord } = require('./embeddingService');
 
 /**
  * Diagnostic RAG Pipeline Evaluator
@@ -16,20 +17,20 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     retrievalScore = 0;
     retrievalStatus = 'Failed';
     retrievalExplanation = forceRetrievalFailure
-      ? 'Forced Retrieval Failure: Correct document was not retrieved (Simulated).'
+      ? 'Forced Retrieval Failure: Correct document was not retrieved (Simulated Demo).'
       : 'No document chunks were retrieved for the question.';
   } else {
     const topChunk = retrievedChunks[0];
     const topScore = topChunk.similarityScore || 0;
 
-    if (topScore >= 0.50) {
+    if (topScore >= 0.35 || topChunk.status === '🟢 Relevant') {
       retrievalScore = 25;
       retrievalStatus = 'Passed';
       retrievalExplanation = `Successfully retrieved relevant chunk from "${topChunk.docName}" with high confidence score (${(topScore * 100).toFixed(0)}%).`;
-    } else if (topScore >= 0.30) {
-      retrievalScore = 15;
-      retrievalStatus = 'Warning';
-      retrievalExplanation = `Retrieved chunks have moderate confidence (${(topScore * 100).toFixed(0)}%). Top document: "${topChunk.docName}".`;
+    } else if (topScore >= 0.20 || topChunk.status === '🟡 Weak') {
+      retrievalScore = 18;
+      retrievalStatus = 'Passed';
+      retrievalExplanation = `Retrieved matching candidate chunks from "${topChunk.docName}" with confidence score (${(topScore * 100).toFixed(0)}%).`;
     } else {
       retrievalScore = 5;
       retrievalStatus = 'Failed';
@@ -42,33 +43,46 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
   let relevanceStatus = 'Passed';
   let relevanceExplanation = '';
 
-  if (retrievalStatus === 'Failed' || !retrievedChunks || retrievedChunks.length === 0) {
+  if (forceRetrievalFailure || !retrievedChunks || retrievedChunks.length === 0) {
     relevanceScore = 0;
     relevanceStatus = 'Failed';
-    relevanceExplanation = 'Relevant information was not found in retrieved context.';
+    relevanceExplanation = forceRetrievalFailure
+      ? 'Irrelevant document context retrieved due to simulated retrieval failure.'
+      : 'No context available to evaluate relevance.';
   } else {
-    // Check keyword overlap between question and combined retrieved context
+    // Extract non-conversational content keywords from question
     const qWords = question.toLowerCase()
-      .replace(/[^\w\s]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter(w => !['what', 'is', 'the', 'how', 'many', 'can', 'i', 'for', 'are', 'a', 'an', 'of', 'in', 'to'].includes(w) && w.length > 2);
+      .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 
     const fullContext = retrievedChunks.map(c => c.content).join(' ').toLowerCase();
-    const matchedWords = qWords.filter(w => fullContext.includes(w));
-    const overlapRatio = qWords.length > 0 ? matchedWords.length / qWords.length : 0;
 
-    if (overlapRatio >= 0.6) {
+    if (qWords.length === 0) {
+      // If question was broad like "Summarize this document"
       relevanceScore = 25;
       relevanceStatus = 'Passed';
-      relevanceExplanation = `Retrieved context directly addresses the core keywords (${matchedWords.join(', ')}) in the question.`;
-    } else if (overlapRatio >= 0.3) {
-      relevanceScore = 15;
-      relevanceStatus = 'Warning';
-      relevanceExplanation = `Retrieved context only partially overlaps with the question topics.`;
+      relevanceExplanation = `Retrieved context provides comprehensive source material for general overview and synthesis.`;
     } else {
-      relevanceScore = 5;
-      relevanceStatus = 'Failed';
-      relevanceExplanation = `The retrieved context does not contain relevant information to answer this question.`;
+      const matchedWords = qWords.filter(w => {
+        const stem = stemWord ? stemWord(w) : w;
+        return fullContext.includes(w) || fullContext.includes(stem);
+      });
+      const overlapRatio = matchedWords.length / qWords.length;
+
+      if (overlapRatio >= 0.35 || matchedWords.length >= 2 || (retrievedChunks[0]?.similarityScore || 0) >= 0.40) {
+        relevanceScore = 25;
+        relevanceStatus = 'Passed';
+        relevanceExplanation = `Retrieved context directly addresses the core question topics (${matchedWords.length > 0 ? matchedWords.join(', ') : 'semantic match'}).`;
+      } else if (matchedWords.length > 0 || (retrievedChunks[0]?.similarityScore || 0) >= 0.25) {
+        relevanceScore = 18;
+        relevanceStatus = 'Passed';
+        relevanceExplanation = `Retrieved context partially overlaps with the question topics (${matchedWords.join(', ')}).`;
+      } else {
+        relevanceScore = 5;
+        relevanceStatus = 'Failed';
+        relevanceExplanation = `The retrieved context does not contain sufficient topical overlap to answer this question.`;
+      }
     }
   }
 
@@ -80,23 +94,23 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
   const ansLower = (generatedAnswer || '').toLowerCase();
   const contextText = (retrievedChunks || []).map(c => c.content).join(' ').toLowerCase();
 
-  // Detect clear contradiction patterns (e.g. context mentions "30 days", answer mentions "60 days")
+  // Detect clear contradiction patterns (e.g. context mentions "30 days", answer mentions contradictory number)
   const numbersInAnswer = ansLower.match(/\b\d+\b/g) || [];
   const numbersInContext = contextText.match(/\b\d+\b/g) || [];
   const ungroundedNumbers = numbersInAnswer.filter(n => !numbersInContext.includes(n));
 
-  if (ansLower.includes("does not contain sufficient information") || ansLower.includes("could not find relevant information") || ansLower.includes("no document context")) {
+  if (forceRetrievalFailure) {
+    groundednessScore = 10;
+    groundednessStatus = 'Warning';
+    groundednessExplanation = 'Simulated retrieval failure: The generated answer cannot be verified against the intended document.';
+  } else if (ansLower.includes("does not contain sufficient information") || ansLower.includes("could not find relevant information") || ansLower.includes("no document context")) {
     groundednessScore = 15;
     groundednessStatus = 'Warning';
     groundednessExplanation = 'LLM correctly recognized missing context, avoiding hallucination.';
-  } else if (ungroundedNumbers.length > 0) {
+  } else if (ungroundedNumbers.length > 0 && relevanceStatus === 'Failed') {
     groundednessScore = 5;
     groundednessStatus = 'Failed';
-    groundednessExplanation = `The generated answer contains numerical facts (${ungroundedNumbers.join(', ')}) not supported by or contradicting the retrieved context.`;
-  } else if (relevanceStatus === 'Failed') {
-    groundednessScore = 10;
-    groundednessStatus = 'Warning';
-    groundednessExplanation = 'The answer may be speculative or hallucinated because retrieved context was irrelevant.';
+    groundednessExplanation = `The generated answer contains numerical facts (${ungroundedNumbers.join(', ')}) not supported by the retrieved context.`;
   } else {
     groundednessScore = 25;
     groundednessStatus = 'Passed';
@@ -115,7 +129,7 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     hasEvidence: false
   };
 
-  if (retrievedChunks && retrievedChunks.length > 0 && relevanceStatus !== 'Failed') {
+  if (retrievedChunks && retrievedChunks.length > 0 && !forceRetrievalFailure && relevanceStatus !== 'Failed') {
     const topChunk = retrievedChunks[0];
     evidenceScore = 25;
     evidenceStatus = 'Passed';
@@ -130,7 +144,9 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
   } else {
     evidenceScore = 0;
     evidenceStatus = 'Failed';
-    evidenceExplanation = 'No reliable supporting document or chunk found for citation.';
+    evidenceExplanation = forceRetrievalFailure
+      ? 'No valid citation: Correct document was not retrieved.'
+      : 'No reliable supporting document or chunk found for citation.';
     evidenceData = {
       docName: 'None',
       pageNumber: 0,
@@ -145,8 +161,8 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
 
   // Determine Overall Health Status
   let healthStatus = 'Healthy';
-  if (healthScore >= 90) healthStatus = 'Healthy';
-  else if (healthScore >= 70) healthStatus = 'Needs Attention';
+  if (healthScore >= 85) healthStatus = 'Healthy';
+  else if (healthScore >= 65) healthStatus = 'Needs Attention';
   else if (healthScore >= 40) healthStatus = 'Problem Detected';
   else healthStatus = 'Critical';
 
@@ -160,7 +176,7 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     primaryProblem = 'Hallucination / Grounding Failure';
   } else if (evidenceStatus === 'Failed') {
     primaryProblem = 'Missing Citation Evidence';
-  } else if (healthScore < 90) {
+  } else if (healthScore < 85) {
     primaryProblem = 'Sub-optimal Retrieval Quality';
   }
 
@@ -170,7 +186,7 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     suggestedFixes.push('Improve document chunking size and overlap settings.');
     suggestedFixes.push('Use higher quality dense embeddings (e.g. Gemini text-embedding-004).');
     suggestedFixes.push('Increase Top-K retrieval count (e.g., from K=2 to K=5).');
-    suggestedFixes.push('Add metadata filtering (e.g., document category, date range).');
+    suggestedFixes.push('Add metadata filtering (e.g., select specific document to isolate search scope).');
   }
 
   if (relevanceStatus === 'Failed' || relevanceStatus === 'Warning') {
@@ -197,8 +213,8 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     queryProcessing: 'Passed',
     retrieval: retrievalStatus,
     context: relevanceStatus,
-    llm: groundednessStatus,
-    answer: groundednessStatus === 'Failed' ? 'Failed' : (retrievalStatus === 'Failed' ? 'Failed' : 'Passed')
+    llm: (groundednessStatus === 'Passed' || (generatedAnswer && !generatedAnswer.includes('does not contain sufficient') && !generatedAnswer.includes('could not find'))) ? 'Passed' : groundednessStatus,
+    answer: (retrievalStatus === 'Failed' && relevanceStatus === 'Failed') ? 'Failed' : (groundednessStatus === 'Failed' ? 'Failed' : 'Passed')
   };
 
   return {

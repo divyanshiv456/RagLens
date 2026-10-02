@@ -7,7 +7,7 @@ const { evaluateRAGPipeline } = require('../services/ragEvaluator');
 // POST /api/rag/ask
 exports.askQuestion = async (req, res) => {
   try {
-    const { question, topK = 3, forceRetrievalFailure = false } = req.body;
+    const { question, topK = 3, forceRetrievalFailure = false, documentId = null } = req.body;
 
     if (!question || question.trim().length === 0) {
       return res.status(400).json({ error: 'Please enter a question.' });
@@ -20,6 +20,15 @@ exports.askQuestion = async (req, res) => {
         error: 'Please upload a document first before asking questions.',
         noDocuments: true
       });
+    }
+
+    // Filter documents if a specific document was selected by user
+    let targetDocs = documents;
+    if (documentId && documentId !== 'all') {
+      const filtered = documents.filter(d => d._id.toString() === documentId.toString());
+      if (filtered.length > 0) {
+        targetDocs = filtered;
+      }
     }
 
     let retrievedChunks = [];
@@ -35,7 +44,7 @@ exports.askQuestion = async (req, res) => {
           chunkIndex: c.chunkIndex,
           content: c.content,
           pageNumber: c.pageNumber || 1,
-          similarityScore: 0.28,
+          similarityScore: 0.18,
           status: '🔴 Irrelevant'
         }));
       }
@@ -46,7 +55,7 @@ exports.askQuestion = async (req, res) => {
 
       const allScoredChunks = [];
 
-      for (const doc of documents) {
+      for (const doc of targetDocs) {
         for (const chunk of doc.chunks) {
           let score = 0;
 
@@ -54,12 +63,12 @@ exports.askQuestion = async (req, res) => {
             score = cosineSimilarity(qEmbedding, chunk.embedding);
           } else {
             const chunkVector = getLocalTermVector(chunk.content);
-            score = cosineSimilarity(qTermVector, chunkVector);
+            score = cosineSimilarity(qTermVector, chunkVector, question, chunk.content);
           }
 
           let status = '🔴 Irrelevant';
-          if (score >= 0.50) status = '🟢 Relevant';
-          else if (score >= 0.30) status = '🟡 Weak';
+          if (score >= 0.40) status = '🟢 Relevant';
+          else if (score >= 0.25) status = '🟡 Weak';
 
           allScoredChunks.push({
             docId: doc._id,

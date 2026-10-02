@@ -14,12 +14,16 @@ exports.uploadDocument = async (req, res) => {
     const { originalname, mimetype, path: filePath, size } = req.file;
     let textContent = '';
     let fileType = 'TXT';
+    let pageCount = 1;
 
     if (mimetype === 'application/pdf' || originalname.endsWith('.pdf')) {
       fileType = 'PDF';
       const fileBuffer = fs.readFileSync(filePath);
       const pdfData = await pdfParse(fileBuffer);
-      textContent = pdfData.text;
+      textContent = pdfData.text || '';
+      pageCount = pdfData.numpages || 1;
+      // Clean up null/zero-width characters common in raw PDF streams
+      textContent = textContent.replace(/\x00/g, '').replace(/[\u200B-\u200D\uFEFF]/g, '');
     } else {
       fileType = 'TXT';
       textContent = fs.readFileSync(filePath, 'utf-8');
@@ -41,11 +45,12 @@ exports.uploadDocument = async (req, res) => {
     for (let i = 0; i < rawChunks.length; i++) {
       const chunk = rawChunks[i];
       const embedding = await generateEmbedding(chunk.content);
+      const estimatedPage = Math.min(pageCount, Math.max(1, Math.ceil(((i + 1) / Math.max(1, rawChunks.length)) * pageCount)));
       processedChunks.push({
         chunkId: `chunk_${i + 1}`,
         chunkIndex: i,
         content: chunk.content,
-        pageNumber: 1,
+        pageNumber: estimatedPage,
         wordCount: chunk.wordCount,
         embedding: Array.isArray(embedding) ? embedding : []
       });

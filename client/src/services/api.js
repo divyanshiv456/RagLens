@@ -34,11 +34,12 @@ export const api = {
   },
 
   // RAG Testing API
-  askQuestion: async (question, topK = 3, forceRetrievalFailure = false) => {
+  askQuestion: async (question, topK = 3, forceRetrievalFailure = false, documentId = null) => {
     const response = await axios.post(`${API_BASE}/rag/ask`, {
       question,
       topK,
-      forceRetrievalFailure
+      forceRetrievalFailure,
+      documentId
     });
     return response.data;
   },

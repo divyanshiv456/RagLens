@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import PipelineVisualizer from '../components/PipelineVisualizer';
 import DiagnosisCard from '../components/DiagnosisCard';
-import { Stethoscope, Play, AlertTriangle, Sliders, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Stethoscope, Play, AlertTriangle, Sliders, RefreshCw, CheckCircle2, HelpCircle, FileText } from 'lucide-react';
 
 export default function TestRAG() {
   const location = useLocation();
@@ -14,6 +14,8 @@ export default function TestRAG() {
   const [loading, setLoading] = useState(false);
   const [diagnosisResult, setDiagnosisResult] = useState(null);
   const [error, setError] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [selectedDocId, setSelectedDocId] = useState('all');
 
   // Preset sample questions
   const samplePresets = [
@@ -43,12 +45,22 @@ export default function TestRAG() {
     }
   ];
 
+  // Fetch available documents
+  useEffect(() => {
+    api.getDocuments()
+      .then(data => setDocuments(data || []))
+      .catch(err => console.error('Error fetching documents in TestRAG:', err));
+  }, []);
+
   useEffect(() => {
     if (location.state?.presetQuestion) {
       setQuestion(location.state.presetQuestion);
       if (location.state.forceFailure) {
         setForceRetrievalFailure(true);
       }
+    }
+    if (location.state?.selectedDocId) {
+      setSelectedDocId(location.state.selectedDocId);
     }
   }, [location.state]);
 
@@ -64,7 +76,7 @@ export default function TestRAG() {
     setError(null);
 
     try {
-      const data = await api.askQuestion(question.trim(), topK, forceRetrievalFailure);
+      const data = await api.askQuestion(question.trim(), topK, forceRetrievalFailure, selectedDocId);
       setDiagnosisResult(data.diagnosis);
     } catch (err) {
       console.error('Error running RAG diagnosis:', err);
@@ -122,6 +134,37 @@ export default function TestRAG() {
           </div>
         </div>
 
+        {/* Target Knowledge Document Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="flex items-center space-x-2 text-slate-800">
+            <FileText className="w-4 h-4 text-sky-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Target Knowledge Scope:</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <select
+              value={selectedDocId}
+              onChange={(e) => setSelectedDocId(e.target.value)}
+              className="text-xs font-semibold bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500 focus:outline-none text-slate-800"
+            >
+              <option value="all">📁 All Documents ({documents.length} indexed)</option>
+              {documents.map((d) => (
+                <option key={d._id} value={d._id}>
+                  📄 {d.filename} ({d.chunkCount} chunks)
+                </option>
+              ))}
+            </select>
+            {selectedDocId !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setSelectedDocId('all')}
+                className="text-xs font-bold text-sky-600 hover:text-sky-800 underline px-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Question Text Area Input */}
         <form onSubmit={handleDiagnose} className="space-y-4">
           <div>
@@ -135,7 +178,7 @@ export default function TestRAG() {
                 setQuestion(e.target.value);
                 setError(null);
               }}
-              placeholder="e.g. What is the company's refund policy?"
+              placeholder="e.g. What is the company's refund policy, or ask anything about your uploaded document..."
               className="w-full p-3 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-medium"
             />
           </div>

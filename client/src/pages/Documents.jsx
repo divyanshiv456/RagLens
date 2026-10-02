@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import ChunkViewerModal from '../components/ChunkViewerModal';
-import { Upload, FileText, Trash2, Eye, RefreshCw, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
+import { Upload, FileText, Trash2, Eye, RefreshCw, CheckCircle2, AlertCircle, Plus, Play, ArrowRight } from 'lucide-react';
 
 export default function Documents() {
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -35,7 +37,12 @@ export default function Documents() {
     setMessage(null);
     try {
       const res = await api.uploadDocument(file);
-      setMessage({ type: 'success', text: `Document "${file.name}" uploaded and split into ${res.document.chunkCount} chunks!` });
+      setMessage({
+        type: 'success',
+        text: `Document "${file.name}" uploaded and indexed into ${res.document.chunkCount} chunks!`,
+        docId: res.document._id,
+        docName: res.document.filename
+      });
       fetchDocuments();
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to upload document' });
@@ -110,9 +117,20 @@ export default function Documents() {
         <div className={`p-4 rounded-xl border text-xs flex items-center justify-between ${
           message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
         }`}>
-          <div className="flex items-center space-x-2">
-            {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-            <span className="font-medium">{message.text}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center space-x-2">
+              {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+              <span className="font-medium">{message.text}</span>
+            </div>
+            {message.docId && (
+              <button
+                onClick={() => navigate('/test', { state: { selectedDocId: message.docId, docName: message.docName } })}
+                className="inline-flex items-center space-x-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs"
+              >
+                <span>Diagnose this Doc</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <button onClick={() => setMessage(null)} className="font-bold text-slate-400 hover:text-slate-600">✕</button>
         </div>
@@ -191,6 +209,14 @@ export default function Documents() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right space-x-2">
+                      <button
+                        onClick={() => navigate('/test', { state: { selectedDocId: doc._id, docName: doc.filename } })}
+                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold rounded-lg border border-sky-200 transition"
+                        title="Test RAG pipeline on this document"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>Test RAG</span>
+                      </button>
                       <button
                         onClick={() => handleViewChunks(doc._id)}
                         className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition"
