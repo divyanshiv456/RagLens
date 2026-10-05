@@ -5,6 +5,10 @@ import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
 import TestRAG from './pages/TestRAG';
 import History from './pages/History';
+import TestLabPage from './pages/TestLabPage';
+import RepairLab from './pages/RepairLab';
+import PipelineReplayPage from './pages/PipelineReplayPage';
+import PerformancePage from './pages/PerformancePage';
 
 export default function App() {
   return (
@@ -17,13 +21,17 @@ export default function App() {
             <Route path="/documents" element={<Documents />} />
             <Route path="/test" element={<TestRAG />} />
             <Route path="/history" element={<History />} />
+            <Route path="/test-lab" element={<TestLabPage />} />
+            <Route path="/repair" element={<RepairLab />} />
+            <Route path="/replay" element={<PipelineReplayPage />} />
+            <Route path="/performance" element={<PerformancePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
         
-        {/* Simple Developer Footer */}
+        {/* Footer */}
         <footer className="bg-slate-900 text-slate-400 border-t border-slate-800 text-center py-4 text-xs">
-          <p>🩺 RAG Doctor — Diagnostic & Debugging Suite for RAG Pipelines</p>
+          <p>🩺 RAG Doctor v2.0 — Diagnostic, Repair, Testing & Monitoring Platform for RAG Systems</p>
         </footer>
       </div>
     </Router>

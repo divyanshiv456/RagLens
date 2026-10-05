@@ -207,6 +207,106 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
     suggestedFixes.push('Pipeline operating at optimal parameters. Maintain current index & model setup.');
   }
 
+  // 5. SECURITY CHECK: RAG Security Doctor (Prompt Injection Scan)
+  const securityRiskTriggers = [
+    'ignore previous instructions',
+    'ignore prior instructions',
+    'reveal system prompt',
+    'reveal confidential information',
+    'ignore security rules',
+    'disregard all instructions',
+    'admin access',
+    'bypass security',
+    'drop database'
+  ];
+
+  let isSafe = true;
+  const detectedTriggers = [];
+
+  const combinedContent = (retrievedChunks || []).map(c => c.content.toLowerCase()).join(' ');
+  for (const trigger of securityRiskTriggers) {
+    if (combinedContent.includes(trigger)) {
+      isSafe = false;
+      detectedTriggers.push(trigger);
+    }
+  }
+
+  const securityCheck = {
+    isSafe,
+    detectedTriggers,
+    warningMessage: isSafe
+      ? 'No malicious instructions or prompt injection vectors detected in retrieved chunks.'
+      : `🛡️ Potential prompt injection detected. The retrieved document contains suspicious instructions (${detectedTriggers.join(', ')}) that may attempt to manipulate the AI.`
+  };
+
+  // 6. Sentence Matcher for Evidence Highlighting
+  let matchedSentence = null;
+  if (evidenceData.hasEvidence && retrievedChunks && retrievedChunks[0]) {
+    const topChunkContent = retrievedChunks[0].content;
+    const sentences = topChunkContent.split(/(?<=[.?!])\s+/);
+    const ansLower = (generatedAnswer || '').toLowerCase();
+    
+    // Find sentence with highest overlap with generated answer
+    let maxOverlap = 0;
+    for (const sent of sentences) {
+      const sWords = sent.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+      const overlapCount = sWords.filter(w => ansLower.includes(w)).length;
+      if (overlapCount > maxOverlap) {
+        maxOverlap = overlapCount;
+        matchedSentence = sent.trim();
+      }
+    }
+    if (!matchedSentence && sentences.length > 0) {
+      matchedSentence = sentences[0].trim();
+    }
+  }
+  evidenceData.matchedSentence = matchedSentence;
+
+  // 7. Smart Diagnosis Summary Formulator
+  let summary = {
+    headline: 'RAG Pipeline Healthy & Grounded!',
+    explanation: 'Document retrieval, context relevance, groundedness, and citation evidence all passed with high confidence.',
+    severity: '🟢 Low (Healthy)',
+    recommendedAction: 'Pipeline operating at optimal parameters. Maintain current index & model setup.'
+  };
+
+  if (retrievalStatus === 'Failed') {
+    summary = {
+      headline: 'Your RAG system has a retrieval problem.',
+      explanation: 'The correct document was available, but it was not retrieved in the top results.',
+      severity: '🔴 High',
+      recommendedAction: 'Increase Top-K retrieval or adjust document chunking overlap settings.'
+    };
+  } else if (relevanceStatus === 'Failed') {
+    summary = {
+      headline: 'Retrieved context lacks relevance to the question.',
+      explanation: 'Document chunks were retrieved, but they do not contain enough pertinent information to answer the query.',
+      severity: '🔴 High',
+      recommendedAction: 'Implement hybrid search (BM25 + Dense Vectors) or refine chunk size.'
+    };
+  } else if (groundednessStatus === 'Failed') {
+    summary = {
+      headline: 'Generated answer contains ungrounded/hallucinated claims.',
+      explanation: 'The AI answer includes facts or numerical details not supported by or contradicting the retrieved document context.',
+      severity: '🔴 High',
+      recommendedAction: 'Strictly enforce system prompt instructions: "Answer ONLY using provided context".'
+    };
+  } else if (evidenceStatus === 'Failed') {
+    summary = {
+      headline: 'Answer missing clear source evidence citation.',
+      explanation: 'The generated response cannot be verified or mapped back to a specific document chunk.',
+      severity: '🟡 Medium',
+      recommendedAction: 'Require explicit citation tags [Doc, Chunk] in LLM output.'
+    };
+  } else if (healthScore < 90) {
+    summary = {
+      headline: 'Sub-optimal RAG pipeline quality detected.',
+      explanation: 'The system generated an answer, but retrieval confidence or context overlap is lower than ideal.',
+      severity: '🟡 Medium',
+      recommendedAction: 'Increase Top-K parameter from K=2 to K=5 and verify embedding model.'
+    };
+  }
+
   // Determine Pipeline Visualization Node Badges
   const pipelineStatus = {
     question: 'Passed',
@@ -248,6 +348,8 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
       }
     },
     evidence: evidenceData,
+    securityCheck,
+    summary,
     suggestedFixes,
     pipelineStatus
   };
@@ -256,3 +358,4 @@ async function evaluateRAGPipeline(question, retrievedChunks, generatedAnswer, o
 module.exports = {
   evaluateRAGPipeline
 };
+

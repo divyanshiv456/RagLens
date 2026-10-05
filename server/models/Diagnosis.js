@@ -48,7 +48,19 @@ const diagnosisSchema = new mongoose.Schema({
     pageNumber: Number,
     chunkId: String,
     snippet: String,
+    matchedSentence: String,
     hasEvidence: Boolean
+  },
+  securityCheck: {
+    isSafe: { type: Boolean, default: true },
+    detectedTriggers: [String],
+    warningMessage: String
+  },
+  summary: {
+    headline: String,
+    explanation: String,
+    severity: String,
+    recommendedAction: String
   },
   suggestedFixes: [String],
   simulationFlags: {
