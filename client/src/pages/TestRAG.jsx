@@ -3,19 +3,22 @@ import { useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import PipelineVisualizer from '../components/PipelineVisualizer';
 import DiagnosisCard from '../components/DiagnosisCard';
-import { Stethoscope, Play, AlertTriangle, Sliders, RefreshCw, CheckCircle2, HelpCircle, FileText } from 'lucide-react';
+import DiagnosticScannerModal from '../components/DiagnosticScannerModal';
+import { useToast } from '../components/ToastContext';
+import { Stethoscope, Play, AlertTriangle, Sliders, RefreshCw, CheckCircle2, HelpCircle } from 'lucide-react';
 
 export default function TestRAG() {
   const location = useLocation();
+  const { addToast } = useToast();
 
   const [question, setQuestion] = useState('');
   const [topK, setTopK] = useState(3);
   const [forceRetrievalFailure, setForceRetrievalFailure] = useState(false);
+  
+  const [isScanningModalOpen, setIsScanningModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [diagnosisResult, setDiagnosisResult] = useState(null);
   const [error, setError] = useState(null);
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocId, setSelectedDocId] = useState('all');
 
   // Preset sample questions
   const samplePresets = [
@@ -35,22 +38,15 @@ export default function TestRAG() {
       title: "🔴 Force Retrieval Failure",
       q: "What is the refund policy?",
       fail: true,
-      desc: "Forces system to retrieve employee policy instead of refund policy to trigger 🔴 Retrieval Failure"
+      desc: "Forces wrong document retrieval to trigger 🔴 Retrieval Failure"
     },
     {
       title: "🟡 Groundedness Check",
       q: "Can I get a refund after 60 days?",
       fail: false,
-      desc: "Checks if LLM correctly respects 30-day refund limit"
+      desc: "Checks if LLM respects 30-day refund limit"
     }
   ];
-
-  // Fetch available documents
-  useEffect(() => {
-    api.getDocuments()
-      .then(data => setDocuments(data || []))
-      .catch(err => console.error('Error fetching documents in TestRAG:', err));
-  }, []);
 
   useEffect(() => {
     if (location.state?.presetQuestion) {
@@ -59,59 +55,68 @@ export default function TestRAG() {
         setForceRetrievalFailure(true);
       }
     }
-    if (location.state?.selectedDocId) {
-      setSelectedDocId(location.state.selectedDocId);
-    }
   }, [location.state]);
 
-  const handleDiagnose = async (e) => {
-    if (e) e.preventDefault();
-
-    if (!question || question.trim().length === 0) {
-      setError('Please enter a question to diagnose.');
-      return;
-    }
-
+  const executeDiagnosis = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await api.askQuestion(question.trim(), topK, forceRetrievalFailure, selectedDocId);
+      const data = await api.askQuestion(question.trim(), topK, forceRetrievalFailure);
       setDiagnosisResult(data.diagnosis);
+      addToast('Diagnosis completed successfully!', 'success');
     } catch (err) {
       console.error('Error running RAG diagnosis:', err);
-      setError(err.response?.data?.error || 'Unable to generate diagnosis. Please try again.');
+      const errMsg = err.response?.data?.error || 'Unable to generate diagnosis. Please try again.';
+      setError(errMsg);
+      addToast(errMsg, 'error');
     } finally {
       setLoading(false);
+      setIsScanningModalOpen(false);
     }
+  };
+
+  const handleStartDiagnose = (e) => {
+    if (e) e.preventDefault();
+
+    if (!question || question.trim().length === 0) {
+      setError('Please enter a question to diagnose.');
+      addToast('Please enter a question to diagnose.', 'warning');
+      return;
+    }
+
+    setIsScanningModalOpen(true);
   };
 
   const applyPreset = (preset) => {
     setQuestion(preset.q);
     setForceRetrievalFailure(preset.fail);
     setError(null);
+    addToast(`Preset selected: "${preset.q}"`, 'info');
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fadeIn">
       
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 flex items-center space-x-2">
-          <Stethoscope className="w-7 h-7 text-sky-600" />
+        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center space-x-2.5">
+          <div className="p-2 bg-sky-500/10 text-sky-500 rounded-xl border border-sky-500/20">
+            <Stethoscope className="w-6 h-6" />
+          </div>
           <span>Test & Diagnose RAG Pipeline</span>
         </h1>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Ask any question to execute a complete diagnostic inspection across Retrieval, Relevance, Groundedness, and Evidence.
         </p>
       </div>
 
-      {/* Input & Parameters Form */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+      {/* Input & Parameters Form Card */}
+      <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg p-6 space-y-5 backdrop-blur-md">
         
         {/* Preset Selector */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
             Select Preset Sample Scenario:
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -120,55 +125,24 @@ export default function TestRAG() {
                 key={idx}
                 type="button"
                 onClick={() => applyPreset(p)}
-                className={`p-3 rounded-xl border text-left transition ${
+                className={`p-3 rounded-xl border text-left transition-all duration-200 ${
                   question === p.q && forceRetrievalFailure === p.fail
-                    ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-300'
-                    : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                    ? 'border-sky-500 bg-sky-500/10 ring-2 ring-sky-500/30'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/40'
                 }`}
               >
-                <span className="text-xs font-bold block mb-1">{p.title}</span>
-                <p className="text-xs text-slate-800 font-medium line-clamp-1">"{p.q}"</p>
+                <span className="text-xs font-bold block mb-1 text-slate-900 dark:text-white">{p.title}</span>
+                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium line-clamp-1">"{p.q}"</p>
                 <span className="text-[10px] text-slate-400 mt-1 block">{p.desc}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Target Knowledge Document Selector */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-          <div className="flex items-center space-x-2 text-slate-800">
-            <FileText className="w-4 h-4 text-sky-600" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Target Knowledge Scope:</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <select
-              value={selectedDocId}
-              onChange={(e) => setSelectedDocId(e.target.value)}
-              className="text-xs font-semibold bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-sky-500 focus:outline-none text-slate-800"
-            >
-              <option value="all">📁 All Documents ({documents.length} indexed)</option>
-              {documents.map((d) => (
-                <option key={d._id} value={d._id}>
-                  📄 {d.filename} ({d.chunkCount} chunks)
-                </option>
-              ))}
-            </select>
-            {selectedDocId !== 'all' && (
-              <button
-                type="button"
-                onClick={() => setSelectedDocId('all')}
-                className="text-xs font-bold text-sky-600 hover:text-sky-800 underline px-1"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Question Text Area Input */}
-        <form onSubmit={handleDiagnose} className="space-y-4">
+        <form onSubmit={handleStartDiagnose} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Enter User Question:
             </label>
             <textarea
@@ -178,39 +152,39 @@ export default function TestRAG() {
                 setQuestion(e.target.value);
                 setError(null);
               }}
-              placeholder="e.g. What is the company's refund policy, or ask anything about your uploaded document..."
-              className="w-full p-3 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-medium"
+              placeholder="e.g. What is the company's refund policy?"
+              className="w-full p-3.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium transition"
             />
           </div>
 
           {/* Configuration Controls Bar */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
             
             <div className="flex items-center space-x-6">
               {/* Top-K Slider */}
               <div className="flex items-center space-x-3">
-                <Sliders className="w-4 h-4 text-slate-500" />
-                <span className="text-xs font-bold text-slate-700">Top-K Chunks: {topK}</span>
+                <Sliders className="w-4 h-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Top-K Chunks: {topK}</span>
                 <input
                   type="range"
                   min="1"
                   max="5"
                   value={topK}
                   onChange={(e) => setTopK(Number(e.target.value))}
-                  className="w-24 accent-sky-600"
+                  className="w-24 accent-sky-500"
                 />
               </div>
 
               {/* Force Retrieval Failure Checkbox */}
-              <label className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+              <label className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={forceRetrievalFailure}
                   onChange={(e) => setForceRetrievalFailure(e.target.checked)}
-                  className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4"
+                  className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4"
                 />
-                <span className={forceRetrievalFailure ? 'text-rose-600 font-bold' : ''}>
-                  Force Retrieval Failure Demo 🧪
+                <span className={forceRetrievalFailure ? 'text-rose-400 font-bold' : ''}>
+                  Force Failure Demo 🧪
                 </span>
               </label>
             </div>
@@ -219,16 +193,16 @@ export default function TestRAG() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow-md transition disabled:opacity-50"
+              className="w-full sm:w-auto flex items-center justify-center space-x-2 px-6 py-3 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition hover:scale-105 active:scale-95 disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Diagnosing Pipeline...</span>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Diagnosing...</span>
                 </>
               ) : (
                 <>
-                  <Stethoscope className="w-5 h-5" />
+                  <Stethoscope className="w-4 h-4" />
                   <span>Diagnose RAG</span>
                 </>
               )}
@@ -239,13 +213,20 @@ export default function TestRAG() {
 
         {/* Error Alert */}
         {error && (
-          <div className="p-4 bg-rose-50 text-rose-800 rounded-xl border border-rose-200 text-xs font-semibold flex items-center space-x-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <div className="p-4 bg-rose-500/10 text-rose-300 rounded-xl border border-rose-500/20 text-xs font-semibold flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
       </div>
+
+      {/* Diagnostic Scanning Modal Overlay */}
+      <DiagnosticScannerModal
+        isOpen={isScanningModalOpen}
+        onClose={() => setIsScanningModalOpen(false)}
+        onComplete={executeDiagnosis}
+      />
 
       {/* Diagnostic Results Section */}
       {diagnosisResult && (

@@ -1,9 +1,6 @@
 import React from 'react';
 import HealthScoreBadge from './HealthScoreBadge';
 import CheckResultCard from './CheckResultCard';
-<<<<<<< HEAD
-import { Lightbulb, FileText, AlertOctagon, CheckCircle2, Bookmark, ExternalLink } from 'lucide-react';
-=======
 import SmartSummary from './SmartSummary';
 import RecommendedFix from './RecommendedFix';
 import EvidenceHighlight from './EvidenceHighlight';
@@ -11,7 +8,6 @@ import SecurityCheckBadge from './SecurityCheckBadge';
 import ExportReportButton from './ExportReportButton';
 import { Lightbulb, FileText, Bookmark, ExternalLink } from 'lucide-react';
 
->>>>>>> 45f5a1b (add)
 export default function DiagnosisCard({ diagnosis = {} }) {
   const {
     _id,
@@ -29,7 +25,7 @@ export default function DiagnosisCard({ diagnosis = {} }) {
   } = diagnosis;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn">
       
       {/* 1. FEATURE 9 — Smart Diagnosis Plain-English Summary */}
       {summary && summary.headline && (
@@ -42,10 +38,10 @@ export default function DiagnosisCard({ diagnosis = {} }) {
       )}
 
       {/* Main Report Container */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden">
+      <div className="glass-panel rounded-2xl overflow-hidden">
         
         {/* Header Banner */}
-        <div className="bg-slate-900 text-white p-5 sm:p-6 border-b border-slate-800">
+        <div className="bg-slate-900/90 text-white p-5 sm:p-6 border-b border-slate-800">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             
             <div className="space-y-1">
@@ -59,7 +55,7 @@ export default function DiagnosisCard({ diagnosis = {} }) {
             </div>
 
             <div className="flex items-center space-x-3">
-              {/* FEATURE 8 — Download Report Button */}
+              {/* Download Report Button */}
               <ExportReportButton diagnosisId={_id} />
               <HealthScoreBadge score={healthScore} status={healthStatus} size="small" />
             </div>
@@ -83,7 +79,7 @@ export default function DiagnosisCard({ diagnosis = {} }) {
 
           {/* 4. Diagnostic Checks 4-Grid */}
           <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center space-x-2">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center space-x-2">
               <span>🔎</span>
               <span>Diagnostic Checks Breakdown</span>
             </h3>
@@ -97,31 +93,31 @@ export default function DiagnosisCard({ diagnosis = {} }) {
 
           {/* 5. Retrieved Chunks Table / Inspector */}
           <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center justify-between">
               <span className="flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-slate-600" />
+                <FileText className="w-4 h-4 text-slate-400" />
                 <span>Retrieved Chunks Inspection ({retrievedChunks.length})</span>
               </span>
             </h3>
 
             {retrievedChunks.length === 0 ? (
-              <div className="p-4 bg-rose-50 text-rose-700 text-xs rounded-xl border border-rose-200">
+              <div className="p-4 bg-rose-500/10 text-rose-300 text-xs rounded-xl border border-rose-500/20">
                 ❌ No chunks retrieved from document repository.
               </div>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {retrievedChunks.map((chunk, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+                  <div key={idx} className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 text-xs">
                     <div className="flex items-center justify-between mb-1.5 font-mono">
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-slate-300">
                         📄 {chunk.docName} (Chunk #{chunk.chunkIndex + 1})
                       </span>
                       <div className="flex items-center space-x-2">
-                        <span className="text-slate-500">Score: {(chunk.similarityScore * 100).toFixed(0)}%</span>
-                        <span className="font-semibold">{chunk.status}</span>
+                        <span className="text-slate-400">Score: {(chunk.similarityScore * 100).toFixed(0)}%</span>
+                        <span className="font-semibold text-emerald-400">{chunk.status}</span>
                       </div>
                     </div>
-                    <p className="text-slate-600 line-clamp-2 bg-white p-2 rounded border border-slate-100 italic">
+                    <p className="text-slate-300 line-clamp-2 bg-slate-900 p-2 rounded border border-slate-800/80 italic font-mono text-[11px]">
                       "{chunk.content}"
                     </p>
                   </div>
@@ -130,7 +126,7 @@ export default function DiagnosisCard({ diagnosis = {} }) {
             )}
           </div>
 
-          {/* 6. FEATURE 2 — Recommended Fix Component */}
+          {/* 6. Recommended Fix Component */}
           <RecommendedFix diagnosis={diagnosis} />
 
         </div>
